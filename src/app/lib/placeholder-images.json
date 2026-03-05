@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-patient",
+      "description": "A patient looking for a doctor",
+      "imageUrl": "https://picsum.photos/seed/doctor-search/800/1200",
+      "imageHint": "patient doctor"
+    },
+    {
+      "id": "hero-doctor",
+      "description": "A medical professional smiling",
+      "imageUrl": "https://picsum.photos/seed/practitioner-reg/800/1200",
+      "imageHint": "medical practitioner"
+    }
+  ]
+}
