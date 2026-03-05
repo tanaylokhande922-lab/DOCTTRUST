@@ -13,13 +13,15 @@ export default function LandingPage() {
     <main className="min-h-screen flex flex-col md:flex-row overflow-hidden">
       {/* Patient Section */}
       <div className="relative flex-1 group overflow-hidden bg-background">
-        <Image
-          src={patientImg?.imageUrl || ''}
-          alt="Patient Interface"
-          fill
-          className="object-cover opacity-30 group-hover:scale-105 transition-transform duration-700"
-          data-ai-hint="patient doctor search"
-        />
+        {patientImg?.imageUrl && (
+          <Image
+            src={patientImg.imageUrl}
+            alt="Patient Interface"
+            fill
+            className="object-cover opacity-30 group-hover:scale-105 transition-transform duration-700"
+            data-ai-hint="patient doctor search"
+          />
+        )}
         <div className="relative h-full flex flex-col items-center justify-center p-8 text-center bg-gradient-to-t from-background via-transparent to-transparent">
           <div className="mb-6 p-4 rounded-full bg-primary/10">
             <Search className="w-12 h-12 text-primary" />
@@ -41,13 +43,15 @@ export default function LandingPage() {
 
       {/* Practitioner Section */}
       <div className="relative flex-1 group overflow-hidden bg-accent/10">
-        <Image
-          src={doctorImg?.imageUrl || ''}
-          alt="Practitioner Interface"
-          fill
-          className="object-cover opacity-30 group-hover:scale-105 transition-transform duration-700"
-          data-ai-hint="medical registration"
-        />
+        {doctorImg?.imageUrl && (
+          <Image
+            src={doctorImg.imageUrl}
+            alt="Practitioner Interface"
+            fill
+            className="object-cover opacity-30 group-hover:scale-105 transition-transform duration-700"
+            data-ai-hint="medical registration"
+          />
+        )}
         <div className="relative h-full flex flex-col items-center justify-center p-8 text-center bg-gradient-to-t from-accent/20 via-transparent to-transparent">
           <div className="mb-6 p-4 rounded-full bg-secondary/20">
             <UserPlus className="w-12 h-12 text-secondary-foreground" />
