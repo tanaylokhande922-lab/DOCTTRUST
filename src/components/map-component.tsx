@@ -1,3 +1,4 @@
+
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -5,8 +6,9 @@ import L from 'leaflet';
 import { Shield, Navigation } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 
-interface Practitioner {
+export interface PractitionerMarker {
   id: string;
   name: string;
   specialization: string;
@@ -15,9 +17,10 @@ interface Practitioner {
 }
 
 interface MapProps {
-  practitioners: Practitioner[];
+  practitioners: PractitionerMarker[];
   userLocation?: [number, number] | null;
   center: [number, number];
+  onBookAppointment: (doc: PractitionerMarker) => void;
 }
 
 const createVerifiedIcon = () => {
@@ -62,7 +65,6 @@ const createUserIcon = () => {
   });
 };
 
-// Component to handle map re-centering
 function MapUpdater({ center, zoom }: { center: [number, number]; zoom?: number }) {
   const map = useMap();
   useEffect(() => {
@@ -71,7 +73,7 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom?: number 
   return null;
 }
 
-export default function MapComponent({ practitioners, userLocation, center }: MapProps) {
+export default function MapComponent({ practitioners, userLocation, center, onBookAppointment }: MapProps) {
   return (
     <MapContainer 
       center={center} 
@@ -84,11 +86,9 @@ export default function MapComponent({ practitioners, userLocation, center }: Ma
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       
-      {/* Update map view if user location changes */}
       {userLocation && <MapUpdater center={userLocation} />}
       {!userLocation && <MapUpdater center={center} />}
 
-      {/* User Location Marker */}
       {userLocation && (
         <Marker position={userLocation} icon={createUserIcon()}>
           <Popup>
@@ -97,7 +97,6 @@ export default function MapComponent({ practitioners, userLocation, center }: Ma
         </Marker>
       )}
 
-      {/* Doctor Markers */}
       {practitioners.map((doc) => (
         <Marker 
           key={doc.id} 
@@ -111,9 +110,12 @@ export default function MapComponent({ practitioners, userLocation, center }: Ma
                 {doc.verified && <Shield className="w-3 h-3 text-primary" />}
               </div>
               <p className="text-xs text-slate-500 mb-3">{doc.specialization}</p>
-              <button className="w-full py-2 px-3 bg-primary text-white text-[10px] font-bold rounded uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm">
+              <Button 
+                onClick={() => onBookAppointment(doc)}
+                className="w-full h-8 text-[10px] font-bold uppercase tracking-wider"
+              >
                 Book Appointment
-              </button>
+              </Button>
             </div>
           </Popup>
         </Marker>
