@@ -1,30 +1,51 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, CheckCircle2, Upload, FileText, Activity, AlertCircle, UserPlus } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Shield, CheckCircle2, Upload, Activity, AlertCircle, Map as MapIcon, Loader2, ArrowLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-const MOCK_OFFICIAL_LIST = [
-  { id: '8978456556', name: 'Dr. Ramesh Babu' },
-  { id: '1122334455', name: 'Dr. Simran' },
-];
+import { useFirestore, useUser } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function DoctorPortal() {
-  const [step, setStep] = useState<'register' | 'verify' | 'dashboard'>('register');
+  const router = useRouter();
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const [step, setStep] = useState<'register' | 'verify' | 'scanning' | 'status'>('register');
   const [formData, setFormData] = useState({
     name: '',
     specialization: '',
     mrn: '',
   });
-  const [isVerified, setIsVerified] = useState(false);
-  const [error, setError] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [verificationStatus, setVerificationStatus] = useState<'VERIFIED' | 'MANUAL_REVIEW_REQUIRED' | 'PENDING' | 'UNVERIFIED'>('UNVERIFIED');
+
+  // Handle scanning simulation
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (step === 'scanning') {
+      interval = setInterval(() => {
+        setScanProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            handleVerificationLogic();
+            return 100;
+          }
+          return prev + 5;
+        });
+      }, 150);
+    }
+    return () => clearInterval(interval);
+  }, [step]);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,102 +53,121 @@ export default function DoctorPortal() {
     setStep('verify');
   };
 
-  const handleVerify = () => {
-    setError('');
-    const match = MOCK_OFFICIAL_LIST.find(item => item.id === formData.mrn);
+  const startScan = () => {
+    if (!formData.mrn) return;
+    setStep('scanning');
+    setScanProgress(0);
+  };
+
+  const handleVerificationLogic = () => {
+    const isSuccess = formData.mrn === '8978456556';
+    const status = isSuccess ? 'VERIFIED' : 'MANUAL_REVIEW_REQUIRED';
     
-    if (match) {
-      setIsVerified(true);
+    setVerificationStatus(status);
+    
+    // Update Firestore optimistically
+    if (user && db) {
+      const practitionerRef = doc(db, 'practitioners', user.uid);
+      const data = {
+        id: user.uid,
+        name: formData.name,
+        specialization: formData.specialization,
+        medicalRegistrationNumber: formData.mrn,
+        verifiedStatus: status,
+        latitude: 21.361862, // Default Shirpur center for demo
+        longitude: 74.878921,
+        certificateUrl: 'https://example.com/cert.pdf',
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+
+      setDoc(practitionerRef, data, { merge: true })
+        .catch(async (error) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: practitionerRef.path,
+            operation: 'write',
+            requestResourceData: data,
+          }));
+        });
+    }
+
+    if (isSuccess) {
       confetti({
         particleCount: 150,
         spread: 70,
         origin: { y: 0.6 },
         colors: ['#0052CC', '#54D4E6', '#ffffff']
       });
-      setTimeout(() => setStep('dashboard'), 2000);
-    } else {
-      setError('Registration ID not found in official registry. Manual review required.');
     }
+    
+    setStep('status');
   };
 
-  const triggerFileUpload = () => {
-    setIsUploading(true);
-    setTimeout(() => {
-        setIsUploading(false);
-    }, 1500);
-  };
-
-  if (step === 'dashboard') {
+  if (step === 'scanning') {
     return (
-      <div className="min-h-screen bg-slate-50 p-6 md:p-12">
-        <div className="max-w-6xl mx-auto">
-          <header className="flex items-center justify-between mb-12">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Practitioner Dashboard</h1>
-              <p className="text-slate-500">Welcome back, {formData.name || 'Doctor'}</p>
+      <div className="min-h-screen bg-[#F3F6F7] flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-2xl border-slate-100 p-8 text-center">
+          <div className="mb-8">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <Activity className="w-10 h-10 text-primary" />
             </div>
-            <div className="flex items-center gap-4">
-              <Badge className="bg-blue-100 text-primary border-blue-200 px-4 py-1.5 h-10 flex gap-2">
-                <Shield className="w-4 h-4" /> Verified Professional
-              </Badge>
-              <div className="w-12 h-12 rounded-full bg-slate-200 border-2 border-white shadow-sm" />
-            </div>
-          </header>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Verification Progress</CardTitle>
-                <CardDescription>View your current verification status and next steps.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="relative pl-8 border-l-2 border-primary space-y-8">
-                  <div className="relative">
-                    <div className="absolute -left-[37px] top-1 w-4 h-4 rounded-full bg-primary" />
-                    <h4 className="font-bold text-slate-900">Registration Submitted</h4>
-                    <p className="text-sm text-slate-500">Basic profile information completed on DocTrust.</p>
-                  </div>
-                  <div className="relative">
-                    <div className="absolute -left-[37px] top-1 w-4 h-4 rounded-full bg-primary" />
-                    <h4 className="font-bold text-slate-900">Certificate Validation</h4>
-                    <p className="text-sm text-slate-500">Medical Council registration verified successfully.</p>
-                  </div>
-                  <div className="relative">
-                     <div className="absolute -left-[37px] top-1 w-4 h-4 rounded-full bg-primary animate-pulse" />
-                     <h4 className="font-bold text-slate-900">Network Integration</h4>
-                     <p className="text-sm text-slate-500">Synchronizing your profile with the public health map.</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-6">
-              <Card className="bg-primary text-white border-none shadow-xl">
-                 <CardHeader>
-                    <Activity className="w-8 h-8 mb-2 opacity-80" />
-                    <CardTitle>Profile Analytics</CardTitle>
-                 </CardHeader>
-                 <CardContent>
-                    <div className="text-4xl font-bold mb-1">248</div>
-                    <p className="text-sm opacity-80">Patient views this week</p>
-                 </CardContent>
-              </Card>
-              <Card>
-                 <CardHeader>
-                    <CardTitle className="text-sm">Quick Settings</CardTitle>
-                 </CardHeader>
-                 <CardContent className="space-y-4">
-                    <Button variant="outline" className="w-full justify-start gap-2">
-                       <UserPlus className="w-4 h-4" /> Edit Profile
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start gap-2">
-                       <FileText className="w-4 h-4" /> Download Badge
-                    </Button>
-                 </CardContent>
-              </Card>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">AI Analyzing Credentials...</h2>
+            <p className="text-slate-500">Scanning medical certificate for authenticity</p>
+          </div>
+          <div className="space-y-4">
+            <Progress value={scanProgress} className="h-3" />
+            <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
+              <span>Extracting Data</span>
+              <span>{scanProgress}%</span>
             </div>
           </div>
-        </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (step === 'status') {
+    return (
+      <div className="min-h-screen bg-[#F3F6F7] flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-2xl border-slate-100 overflow-hidden">
+          <div className={`h-2 ${verificationStatus === 'VERIFIED' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+          <CardHeader className="text-center pt-8">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${verificationStatus === 'VERIFIED' ? 'bg-green-100' : 'bg-yellow-100'}`}>
+              {verificationStatus === 'VERIFIED' ? (
+                <Shield className="w-8 h-8 text-green-600" />
+              ) : (
+                <AlertCircle className="w-8 h-8 text-yellow-600" />
+              )}
+            </div>
+            <CardTitle className="text-2xl">
+              {verificationStatus === 'VERIFIED' ? 'Verification Successful' : 'Manual Review Required'}
+            </CardTitle>
+            <CardDescription>
+              {verificationStatus === 'VERIFIED' 
+                ? 'Your credentials have been authenticated against the official registry.'
+                : 'We couldn\'t find an instant match for this ID. A moderator will review your document within 24 hours.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            {verificationStatus === 'VERIFIED' ? (
+              <Badge className="bg-blue-100 text-primary border-blue-200 px-4 py-2 text-sm gap-2">
+                <Shield className="w-4 h-4" /> Verified Professional
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-yellow-700 border-yellow-200 bg-yellow-50 px-4 py-2 text-sm">
+                Pending Verification
+              </Badge>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3 pb-8">
+            <Button className="w-full h-12 text-lg font-bold gap-2" onClick={() => router.push('/patient')}>
+              <MapIcon className="w-5 h-5" /> Return to Map
+            </Button>
+            <Button variant="ghost" className="text-slate-500" onClick={() => setStep('verify')}>
+              Try another ID
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -198,48 +238,37 @@ export default function DoctorPortal() {
                     placeholder="Enter Registration ID" 
                     className="h-12 border-slate-200 pr-10" 
                     value={formData.mrn}
-                    onChange={(e) => {
-                      setFormData({...formData, mrn: e.target.value});
-                      setError('');
-                    }}
+                    onChange={(e) => setFormData({...formData, mrn: e.target.value})}
                   />
-                  {isVerified && <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 w-5 h-5" />}
                 </div>
-                <p className="text-xs text-slate-400">Example IDs: 8978456556 or 1122334455 for instant demo validation.</p>
+                <p className="text-xs text-slate-400">Try ID: 8978456556 for instant demo validation.</p>
               </div>
 
               <div className="space-y-4">
                 <Label>Verification Certificate (PDF/Image)</Label>
                 <div 
-                  onClick={triggerFileUpload}
+                  onClick={startScan}
                   className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:bg-slate-50 hover:border-primary/30 transition-all group"
                 >
                   <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                    {isUploading ? <Activity className="w-6 h-6 text-primary animate-spin" /> : <Upload className="w-6 h-6 text-slate-400" />}
+                    <Upload className="w-6 h-6 text-slate-400" />
                   </div>
-                  <h4 className="font-bold text-slate-700">{isUploading ? 'Uploading...' : 'Drop certificate here'}</h4>
+                  <h4 className="font-bold text-slate-700">Drop certificate here</h4>
                   <p className="text-sm text-slate-500">Maximum file size: 5MB (JPG, PNG or PDF)</p>
                 </div>
               </div>
-
-              {error && (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex gap-3 text-red-700 text-sm">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p>{error}</p>
-                </div>
-              )}
             </CardContent>
             <CardFooter className="pb-8 flex flex-col gap-4">
               <Button 
-                onClick={handleVerify} 
+                onClick={startScan} 
                 size="lg" 
-                className={`w-full h-12 text-lg font-bold shadow-lg transition-all ${isVerified ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                disabled={!formData.mrn || isVerified}
+                className="w-full h-12 text-lg font-bold shadow-lg"
+                disabled={!formData.mrn}
               >
-                {isVerified ? 'Verification Successful!' : 'Verify Registration'}
+                Scan & Verify Certificate
               </Button>
-              <Button variant="ghost" onClick={() => setStep('register')} className="text-slate-500">
-                Back to profile
+              <Button variant="ghost" onClick={() => setStep('register')} className="text-slate-500 flex items-center gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back to profile
               </Button>
             </CardFooter>
           </Card>
