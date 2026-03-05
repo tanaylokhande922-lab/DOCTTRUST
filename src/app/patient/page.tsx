@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth, initiateAnonymousSignIn, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PractitionerMarker } from '@/components/map-component';
@@ -253,93 +253,95 @@ export default function PatientPortal() {
 
       {/* Appointment Dialog */}
       <Dialog open={!!selectedDoctor} onOpenChange={(open) => !open && closeBooking()}>
-        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl max-h-[90vh] flex flex-col">
-          {isBookingSuccess ? (
-            <div className="py-16 px-8 text-center space-y-6 animate-in fade-in zoom-in duration-300">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
-                <CheckCircle2 className="w-10 h-10 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-slate-900 mb-2">Booking Confirmed!</h3>
-                <p className="text-slate-500 leading-relaxed">
-                  Your appointment with <span className="font-semibold text-primary">{selectedDoctor?.name}</span> has been successfully scheduled.
-                </p>
-              </div>
-              <Button onClick={closeBooking} className="w-full h-12 text-lg shadow-lg">Excellent</Button>
-            </div>
-          ) : (
-            <>
-              <DialogHeader className="p-6 bg-slate-50 border-b shrink-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <DialogTitle className="text-xl font-bold text-slate-900">Book Appointment</DialogTitle>
-                    <DialogDescription className="text-slate-500 mt-1">
-                      Schedule a visit with {selectedDoctor?.name}
-                    </DialogDescription>
-                  </div>
-                  {selectedDoctor?.verified && (
-                    <Badge variant="secondary" className="bg-blue-100 text-primary border-blue-200">
-                      <Shield className="w-3 h-3 mr-1" /> Verified
-                    </Badge>
-                  )}
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[420px] p-0 gap-0 overflow-hidden border-none shadow-2xl rounded-2xl max-h-[85vh]">
+          <div className="flex flex-col max-h-[85vh]">
+            {isBookingSuccess ? (
+              <div className="py-12 px-6 text-center space-y-5 animate-in fade-in zoom-in duration-300">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 border-4 border-white shadow-lg">
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
                 </div>
-              </DialogHeader>
-              
-              <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">1</div>
-                    <span className="font-bold text-sm uppercase tracking-wider">Select Date</span>
-                  </div>
-                  <div className="flex justify-center border rounded-2xl p-2 bg-white shadow-inner">
-                    <Calendar
-                      mode="single"
-                      selected={bookingDate}
-                      onSelect={setBookingDate}
-                      className="rounded-xl"
-                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
-                    />
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Booking Confirmed!</h3>
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Your appointment with <span className="font-semibold text-primary">{selectedDoctor?.name}</span> has been successfully scheduled.
+                  </p>
+                </div>
+                <Button onClick={closeBooking} className="w-full h-11 text-base shadow-lg">Excellent</Button>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 sm:p-5 bg-slate-50 border-b shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <DialogTitle className="text-lg font-bold text-slate-900">Book Appointment</DialogTitle>
+                      <DialogDescription className="text-slate-500 text-sm mt-0.5">
+                        Schedule a visit with {selectedDoctor?.name}
+                      </DialogDescription>
+                    </div>
+                    {selectedDoctor?.verified && (
+                      <Badge variant="secondary" className="bg-blue-100 text-primary border-blue-200 text-xs">
+                        <Shield className="w-3 h-3 mr-1" /> Verified
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">2</div>
-                    <span className="font-bold text-sm uppercase tracking-wider">Select Time</span>
+                <div className="p-4 sm:p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-primary">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold">1</div>
+                      <span className="font-bold text-xs uppercase tracking-wider">Select Date</span>
+                    </div>
+                    <div className="flex justify-center border rounded-xl p-1 bg-white shadow-inner">
+                      <Calendar
+                        mode="single"
+                        selected={bookingDate}
+                        onSelect={setBookingDate}
+                        className="rounded-lg !p-2"
+                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                      />
+                    </div>
                   </div>
-                  <Select value={bookingTime} onValueChange={setBookingTime}>
-                    <SelectTrigger className="h-12 border-slate-200 rounded-xl focus:ring-primary">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        <SelectValue placeholder="Select a time slot" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl shadow-xl">
-                      <SelectItem value="09:00">09:00 AM - Morning</SelectItem>
-                      <SelectItem value="10:00">10:00 AM - Morning</SelectItem>
-                      <SelectItem value="11:00">11:00 AM - Morning</SelectItem>
-                      <SelectItem value="14:00">02:00 PM - Afternoon</SelectItem>
-                      <SelectItem value="15:00">03:00 PM - Afternoon</SelectItem>
-                      <SelectItem value="16:00">04:00 PM - Afternoon</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-primary">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold">2</div>
+                      <span className="font-bold text-xs uppercase tracking-wider">Select Time</span>
+                    </div>
+                    <Select value={bookingTime} onValueChange={setBookingTime}>
+                      <SelectTrigger className="h-11 border-slate-200 rounded-xl focus:ring-primary">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-slate-400" />
+                          <SelectValue placeholder="Select a time slot" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl shadow-xl">
+                        <SelectItem value="09:00">09:00 AM - Morning</SelectItem>
+                        <SelectItem value="10:00">10:00 AM - Morning</SelectItem>
+                        <SelectItem value="11:00">11:00 AM - Morning</SelectItem>
+                        <SelectItem value="14:00">02:00 PM - Afternoon</SelectItem>
+                        <SelectItem value="15:00">03:00 PM - Afternoon</SelectItem>
+                        <SelectItem value="16:00">04:00 PM - Afternoon</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-              
-              <DialogFooter className="p-6 bg-slate-50 border-t flex flex-row items-center justify-between gap-4 shrink-0">
-                <Button variant="ghost" onClick={closeBooking} className="text-slate-500 hover:bg-slate-200 rounded-xl">
-                  Discard
-                </Button>
-                <Button 
-                  onClick={handleConfirmBooking} 
-                  disabled={!bookingDate} 
-                  className="px-8 h-12 rounded-xl shadow-lg bg-primary hover:bg-primary/90 gap-2"
-                >
-                  Confirm Booking <ChevronRight className="w-4 h-4" />
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+                
+                <div className="p-4 sm:p-5 bg-slate-50 border-t shrink-0 flex items-center justify-between gap-3">
+                  <Button variant="ghost" onClick={closeBooking} className="text-slate-500 hover:bg-slate-200 rounded-xl h-10">
+                    Discard
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmBooking} 
+                    disabled={!bookingDate} 
+                    className="px-6 h-10 rounded-xl shadow-lg bg-primary hover:bg-primary/90 gap-2"
+                  >
+                    Confirm Booking <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

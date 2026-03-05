@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Shield, Navigation } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
-import { useEffect, useState, useRef, useId } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 
 export interface PractitionerMarker {
@@ -75,14 +75,10 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom?: number 
 
 export default function MapComponent({ practitioners, userLocation, center, onBookAppointment }: MapProps) {
   const [isMounted, setIsMounted] = useState(false);
-  const mapKey = useId();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const mapKeyRef = useRef(`map-${Date.now()}`);
 
   useEffect(() => {
     setIsMounted(true);
-    return () => {
-      setIsMounted(false);
-    };
   }, []);
 
   if (!isMounted) {
@@ -94,9 +90,9 @@ export default function MapComponent({ practitioners, userLocation, center, onBo
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div className="w-full h-full">
       <MapContainer 
-        key={mapKey}
+        key={mapKeyRef.current}
         center={center} 
         zoom={14} 
         scrollWheelZoom={true} 
