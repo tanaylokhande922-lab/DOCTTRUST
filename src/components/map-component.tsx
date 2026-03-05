@@ -114,7 +114,7 @@ export default function MapComponent({ practitioners, userLocation, center, onBo
           </Marker>
         )}
 
-        {practitioners.map((doc) => (
+        {practitioners.filter((doc) => Array.isArray(doc.location) && doc.location.length >= 2 && doc.location[0] != null && doc.location[1] != null).map((doc) => (
           <Marker 
             key={doc.id} 
             position={doc.location as [number, number]} 
