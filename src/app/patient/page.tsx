@@ -73,8 +73,8 @@ export default function PatientPortal() {
     const allDocs = [...MOCK_PRACTITIONERS, ...realDocs];
 
     const filtered = allDocs.filter(doc => 
-      doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.name.toLowerCase().includes(searchTerm.toLowerCase())
+      (doc.specialization ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.name ?? '').toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredDocs(filtered);
   }, [searchTerm, dbPractitioners]);
