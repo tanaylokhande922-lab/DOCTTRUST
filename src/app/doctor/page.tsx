@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Shield, CheckCircle2, Upload, Activity, AlertCircle, Map as MapIcon, Loader2, ArrowLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, useAuth, initiateAnonymousSignIn } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -19,6 +20,7 @@ export default function DoctorPortal() {
   const router = useRouter();
   const { user } = useUser();
   const db = useFirestore();
+  const auth = useAuth();
 
   const [step, setStep] = useState<'register' | 'verify' | 'scanning' | 'status'>('register');
   const [formData, setFormData] = useState({
@@ -28,6 +30,13 @@ export default function DoctorPortal() {
   });
   const [scanProgress, setScanProgress] = useState(0);
   const [verificationStatus, setVerificationStatus] = useState<'VERIFIED' | 'MANUAL_REVIEW_REQUIRED' | 'PENDING' | 'UNVERIFIED'>('UNVERIFIED');
+
+  // Sign in anonymously if not authenticated to ensure we have a UID for Firestore
+  useEffect(() => {
+    if (!user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, auth]);
 
   // Handle scanning simulation
   useEffect(() => {
@@ -74,9 +83,9 @@ export default function DoctorPortal() {
         specialization: formData.specialization,
         medicalRegistrationNumber: formData.mrn,
         verifiedStatus: status,
-        latitude: 21.361862, // Default Shirpur center for demo
+        latitude: 21.361862, // Demo location in Shirpur
         longitude: 74.878921,
-        certificateUrl: 'https://example.com/cert.pdf',
+        certificateUrl: 'https://placehold.co/600x400/png?text=Medical+Certificate',
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
       };

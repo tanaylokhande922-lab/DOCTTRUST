@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +9,8 @@ import { Search, MapPin, Shield, Info, Navigation } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 // Dynamic import for Leaflet as it requires window object
 const MapWithNoSSR = dynamic(() => import('@/components/map-component'), {
@@ -27,18 +30,32 @@ const MOCK_PRACTITIONERS = [
 
 export default function PatientPortal() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredDocs, setFilteredDocs] = useState(MOCK_PRACTITIONERS);
+  const [filteredDocs, setFilteredDocs] = useState([]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const { toast } = useToast();
+  
+  const db = useFirestore();
+  const practitionersQuery = useMemoFirebase(() => collection(db, 'practitioners'), [db]);
+  const { data: dbPractitioners } = useCollection(practitionersQuery);
 
   useEffect(() => {
-    const filtered = MOCK_PRACTITIONERS.filter(doc => 
+    const realDocs = dbPractitioners?.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      specialization: doc.specialization,
+      verified: doc.verifiedStatus === 'VERIFIED',
+      location: [doc.latitude, doc.longitude]
+    })) || [];
+
+    const allDocs = [...MOCK_PRACTITIONERS, ...realDocs];
+
+    const filtered = allDocs.filter(doc => 
       doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredDocs(filtered);
-  }, [searchTerm]);
+  }, [searchTerm, dbPractitioners]);
 
   const handleShareLocation = () => {
     if (!navigator.geolocation) {
