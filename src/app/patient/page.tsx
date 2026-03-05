@@ -42,13 +42,18 @@ export default function PatientPortal() {
   
   // Booking State
   const [selectedDoctor, setSelectedDoctor] = useState<PractitionerMarker | null>(null);
-  const [bookingDate, setBookingDate] = useState<Date | undefined>(new Date());
+  const [bookingDate, setBookingDate] = useState<Date | undefined>(undefined);
   const [bookingTime, setBookingTime] = useState<string>('09:00');
   const [isBookingSuccess, setIsBookingSuccess] = useState(false);
 
   const db = useFirestore();
   const practitionersQuery = useMemoFirebase(() => collection(db, 'practitioners'), [db]);
   const { data: dbPractitioners } = useCollection(practitionersQuery);
+
+  // Initialize booking date on client to avoid hydration mismatch
+  useEffect(() => {
+    setBookingDate(new Date());
+  }, []);
 
   // Ensure user is signed in for booking capability
   useEffect(() => {
@@ -249,9 +254,9 @@ export default function PatientPortal() {
 
       {/* Appointment Dialog */}
       <Dialog open={!!selectedDoctor} onOpenChange={(open) => !open && closeBooking()}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden">
           {isBookingSuccess ? (
-            <div className="py-12 text-center space-y-4">
+            <div className="py-12 px-6 text-center space-y-4">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-10 h-10 text-green-600" />
               </div>
@@ -261,31 +266,34 @@ export default function PatientPortal() {
             </div>
           ) : (
             <>
-              <DialogHeader>
+              <DialogHeader className="p-6 bg-slate-50 border-b">
                 <DialogTitle>Book Appointment</DialogTitle>
-                <DialogDescription>
-                  Choose a date and time for your visit with <strong>{selectedDoctor?.name}</strong>.
+                <DialogDescription className="text-slate-600">
+                  Select a slot with <strong>{selectedDoctor?.name}</strong>
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-6 py-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold flex items-center gap-2">
-                    <CalendarIcon className="w-4 h-4" /> Select Date
+              <div className="p-6 space-y-6">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
+                    <CalendarIcon className="w-3.5 h-3.5" /> 1. Select Date
                   </label>
-                  <Calendar
-                    mode="single"
-                    selected={bookingDate}
-                    onSelect={setBookingDate}
-                    className="rounded-md border mx-auto"
-                    disabled={(date) => date < new Date()}
-                  />
+                  <div className="flex justify-center border rounded-xl p-1 bg-white">
+                    <Calendar
+                      mode="single"
+                      selected={bookingDate}
+                      onSelect={setBookingDate}
+                      className="scale-[0.9] origin-top"
+                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-bold flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> Select Time
+                
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" /> 2. Select Time
                   </label>
                   <Select value={bookingTime} onValueChange={setBookingTime}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-slate-200">
                       <SelectValue placeholder="Select time" />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,9 +307,11 @@ export default function PatientPortal() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={closeBooking}>Cancel</Button>
-                <Button onClick={handleConfirmBooking} disabled={!bookingDate}>Confirm Appointment</Button>
+              <DialogFooter className="p-6 bg-slate-50 border-t flex sm:justify-between items-center">
+                <Button variant="ghost" onClick={closeBooking} className="text-slate-500">Cancel</Button>
+                <Button onClick={handleConfirmBooking} disabled={!bookingDate} className="px-8 shadow-md">
+                  Confirm Booking
+                </Button>
               </DialogFooter>
             </>
           )}
