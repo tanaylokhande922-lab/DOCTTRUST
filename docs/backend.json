@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "Practitioner": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Practitioner",
+      "type": "object",
+      "description": "Represents a medical practitioner in the DocTrust application, including their professional details and verification status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Practitioner entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the practitioner."
+        },
+        "specialization": {
+          "type": "string",
+          "description": "The medical specialization of the practitioner (e.g., 'Cardiologist', 'Pediatrician')."
+        },
+        "medicalRegistrationNumber": {
+          "type": "string",
+          "description": "The unique medical registration number or identifier for the practitioner, used for verification against official lists."
+        },
+        "verifiedStatus": {
+          "type": "string",
+          "description": "The current verification status of the practitioner. Possible states: 'UNVERIFIED' (initial state), 'PENDING_REVIEW' (certificate submitted, awaiting check), 'MANUAL_REVIEW_REQUIRED' (automated check failed, needs human review), 'VERIFIED' (successfully verified).",
+          "format": "string",
+          "items": {
+            "type": "string"
+          }
+        },
+        "latitude": {
+          "type": "number",
+          "description": "The latitude coordinate of the practitioner's primary location, used for map display."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "The longitude coordinate of the practitioner's primary location, used for map display."
+        },
+        "certificateUrl": {
+          "type": "string",
+          "description": "URL to the practitioner's uploaded medical certificate (PDF or image file) for verification.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the practitioner's profile was initially created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating the last time the practitioner's profile was updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "specialization",
+        "medicalRegistrationNumber",
+        "verifiedStatus",
+        "latitude",
+        "longitude",
+        "certificateUrl",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/practitioners/{practitionerId}",
+        "definition": {
+          "entityName": "Practitioner",
+          "schema": {
+            "$ref": "#/backend/entities/Practitioner"
+          },
+          "description": "Stores individual medical practitioner profiles. The `practitionerId` in the path corresponds to the practitioner's Firebase Authentication UID and the `id` field within the document. This collection is publicly readable for patient map/search functionality, and writable only by the owning practitioner. Includes the `verifiedStatus` field for explicit state modeling. The `certificateUrl` field contains the link to their uploaded degree. Includes denormalized 'id' matching 'practitionerId' for authorization independence.",
+          "params": [
+            {
+              "name": "practitionerId",
+              "description": "The unique Firebase Authentication UID of the practitioner, serving as the document ID."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure utilizes a single top-level collection, '/practitioners', to store all medical practitioner profiles. Each document within this collection represents a 'Practitioner' entity, with the document ID (`practitionerId`) being identical to the practitioner's Firebase Authentication UID. This design directly addresses Authorization Independence by ensuring that all authorization context for a practitioner (their ownership and status) is self-contained within their document or derivable from the path, eliminating the need for `get()` calls in security rules. For example, a practitioner can update their own profile by checking `request.auth.uid == practitionerId`.\n\nThis structure also effectively supports QAPs (Queries as Permissions) by allowing public read access to the entire '/practitioners' collection (`allow read: if true;`). This is crucial for the 'Patient Portal' which needs to 'Pull pins from the practitioners collection' to display all doctors on a map and enable filtering by specialization. The client-side application is then responsible for interpreting the `verifiedStatus` field (e.g., showing a blue shield for 'VERIFIED' doctors and a grey dot otherwise) and applying any additional filtering. This approach ensures that security rules grant access to the necessary data without attempting to filter the data, which is an anti-pattern. The `verifiedStatus` field is explicitly modeled as a finite state machine (`UNVERIFIED`, `PENDING_REVIEW`, `MANUAL_REVIEW_REQUIRED`, `VERIFIED`), providing clear intent and debuggability. All documents within '/practitioners' share a homogeneous security posture (publicly readable, owner-writable), aligning with Structural Segregation."
+  }
+}

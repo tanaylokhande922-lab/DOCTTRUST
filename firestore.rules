@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * DocTrust Security Rules
+     * -----------------------
+     * Core Philosophy: This ruleset implements a Public Read / Owner Write model for medical practitioners. 
+     * It ensures that while the general public can discover doctors via maps and search, only the 
+     * authenticated practitioner can manage their own profile and verification data.
+     *
+     * Data Structure: 
+     * - /practitioners/{practitionerId}: Top-level collection where 'practitionerId' matches the Firebase Auth UID.
+     *
+     * Key Security Decisions:
+     * - Public Read Access: Enabled for the practitioners collection to support patient-facing search and map features.
+     * - Strict Ownership: All write operations (create, update, delete) are restricted to the practitioner 
+     *   whose UID matches the document ID.
+     * - Relational Integrity: On creation, the rules enforce that the internal 'id' field matches the 
+     *   document's path ID to prevent identity spoofing.
+     * - Prototyping Flexibility: Schema validation is omitted to allow for rapid iteration of fields 
+     *   like 'verifiedStatus' or 'isVerified' without requiring rule updates.
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the user is authenticated with Firebase Auth. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Checks ownership and ensures the document already exists for update/delete. */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the Practitioners collection, allowing public discovery and owner-only management.
+     * @path /practitioners/{practitionerId}
+     * @allow (get/list) Anyone, even unauthenticated users, can view doctor profiles.
+     * @allow (create) An authenticated practitioner where request.auth.uid == practitionerId and data.id matches.
+     * @deny (write) Any user attempting to modify a profile that does not belong to their UID.
+     * @principle Public Read with Owner-Only Writes. Enforces document ownership and ID-path consistency.
+     */
+    match /practitioners/{practitionerId} {
+      // Publicly readable for map and search functionality
+      allow get, list: if true;
+
+      // Only the owning practitioner can create their profile
+      // Enforces that the internal 'id' matches the 'practitionerId' in the path
+      allow create: if isOwner(practitionerId) && request.resource.data.id == practitionerId;
+
+      // Only the owner can update their profile (e.g., updating verifiedStatus or certificateUrl)
+      // Enforces that the 'id' field remains immutable
+      allow update: if isExistingOwner(practitionerId) && request.resource.data.id == resource.data.id;
+
+      // Only the owner can delete their profile
+      allow delete: if isExistingOwner(practitionerId);
+    }
+
+  }
+}
