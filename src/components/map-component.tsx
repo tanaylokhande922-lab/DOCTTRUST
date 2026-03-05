@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Shield, Navigation } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useId } from 'react';
 import { Button } from '@/components/ui/button';
 
 export interface PractitionerMarker {
@@ -74,52 +74,74 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom?: number 
 }
 
 export default function MapComponent({ practitioners, userLocation, center, onBookAppointment }: MapProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  const mapKey = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-muted animate-pulse text-muted-foreground font-medium">
+        Loading Interactive Map...
+      </div>
+    );
+  }
+
   return (
-    <MapContainer 
-      center={center} 
-      zoom={14} 
-      scrollWheelZoom={true} 
-      className="w-full h-full"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      
-      {userLocation && <MapUpdater center={userLocation} />}
-      {!userLocation && <MapUpdater center={center} />}
+    <div ref={containerRef} className="w-full h-full">
+      <MapContainer 
+        key={mapKey}
+        center={center} 
+        zoom={14} 
+        scrollWheelZoom={true} 
+        className="w-full h-full"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        {userLocation && <MapUpdater center={userLocation} />}
+        {!userLocation && <MapUpdater center={center} />}
 
-      {userLocation && (
-        <Marker position={userLocation} icon={createUserIcon()}>
-          <Popup>
-            <div className="text-center font-bold text-xs p-1">You are here</div>
-          </Popup>
-        </Marker>
-      )}
+        {userLocation && (
+          <Marker position={userLocation} icon={createUserIcon()}>
+            <Popup>
+              <div className="text-center font-bold text-xs p-1">You are here</div>
+            </Popup>
+          </Marker>
+        )}
 
-      {practitioners.map((doc) => (
-        <Marker 
-          key={doc.id} 
-          position={doc.location as [number, number]} 
-          icon={doc.verified ? createVerifiedIcon() : createUnverifiedIcon()}
-        >
-          <Popup className="rounded-xl overflow-hidden shadow-xl">
-            <div className="p-2 min-w-[150px]">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-bold text-slate-900">{doc.name}</h3>
-                {doc.verified && <Shield className="w-3 h-3 text-primary" />}
+        {practitioners.map((doc) => (
+          <Marker 
+            key={doc.id} 
+            position={doc.location as [number, number]} 
+            icon={doc.verified ? createVerifiedIcon() : createUnverifiedIcon()}
+          >
+            <Popup className="rounded-xl overflow-hidden shadow-xl">
+              <div className="p-2 min-w-[150px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-bold text-slate-900">{doc.name}</h3>
+                  {doc.verified && <Shield className="w-3 h-3 text-primary" />}
+                </div>
+                <p className="text-xs text-slate-500 mb-3">{doc.specialization}</p>
+                <Button 
+                  onClick={() => onBookAppointment(doc)}
+                  className="w-full h-8 text-[10px] font-bold uppercase tracking-wider"
+                >
+                  Book Appointment
+                </Button>
               </div>
-              <p className="text-xs text-slate-500 mb-3">{doc.specialization}</p>
-              <Button 
-                onClick={() => onBookAppointment(doc)}
-                className="w-full h-8 text-[10px] font-bold uppercase tracking-wider"
-              >
-                Book Appointment
-              </Button>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </MapContainer>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+    </div>
   );
 }
