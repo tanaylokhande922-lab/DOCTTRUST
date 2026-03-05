@@ -65,5 +65,38 @@ service cloud.firestore {
       allow delete: if isExistingOwner(practitionerId);
     }
 
+    /**
+     * @description Rules for the Appointments collection, allowing patients to book and view their appointments.
+     * @path /appointments/{appointmentId}
+     * @allow (create) Any authenticated user can create an appointment, with their UID set as patientId.
+     * @allow (get) The patient who booked or the practitioner the appointment is with can read it.
+     * @allow (list) Authenticated users can list appointments (filtered client-side by patientId or practitionerId).
+     * @allow (update) The patient or the practitioner involved can update the appointment (e.g., cancel or confirm).
+     * @allow (delete) The patient who created the appointment can delete it.
+     * @principle Authenticated Create with Owner/Participant Read-Write.
+     */
+    match /appointments/{appointmentId} {
+      // Any signed-in user can create an appointment as long as they set themselves as the patient
+      allow create: if isSignedIn() && request.resource.data.patientId == request.auth.uid;
+
+      // The patient or the practitioner involved can read the appointment
+      allow get: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.practitionerId == request.auth.uid
+      );
+
+      // Authenticated users can list appointments (queries should filter by patientId or practitionerId)
+      allow list: if isSignedIn();
+
+      // The patient or practitioner can update the appointment (e.g., confirm, cancel)
+      allow update: if isSignedIn() && resource != null && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.practitionerId == request.auth.uid
+      );
+
+      // Only the patient who booked it can delete
+      allow delete: if isSignedIn() && resource != null && resource.data.patientId == request.auth.uid;
+    }
+
   }
 }
