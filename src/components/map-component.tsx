@@ -1,10 +1,10 @@
-
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Shield } from 'lucide-react';
+import { Shield, Navigation } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
+import { useEffect } from 'react';
 
 interface Practitioner {
   id: string;
@@ -16,6 +16,8 @@ interface Practitioner {
 
 interface MapProps {
   practitioners: Practitioner[];
+  userLocation?: [number, number] | null;
+  center: [number, number];
 }
 
 const createVerifiedIcon = () => {
@@ -46,13 +48,34 @@ const createUnverifiedIcon = () => {
   });
 };
 
-export default function MapComponent({ practitioners }: MapProps) {
-  const center: [number, number] = [12.9716, 77.5946]; // Bangalore center
+const createUserIcon = () => {
+  const html = renderToString(
+    <div className="bg-green-500 p-2 rounded-full border-2 border-white shadow-xl flex items-center justify-center animate-pulse">
+      <Navigation className="w-4 h-4 text-white fill-white" />
+    </div>
+  );
+  return L.divIcon({
+    html: html,
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+};
 
+// Component to handle map re-centering
+function MapUpdater({ center, zoom }: { center: [number, number]; zoom?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom || map.getZoom());
+  }, [center, map, zoom]);
+  return null;
+}
+
+export default function MapComponent({ practitioners, userLocation, center }: MapProps) {
   return (
     <MapContainer 
       center={center} 
-      zoom={13} 
+      zoom={14} 
       scrollWheelZoom={true} 
       className="w-full h-full"
     >
@@ -60,6 +83,21 @@ export default function MapComponent({ practitioners }: MapProps) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      
+      {/* Update map view if user location changes */}
+      {userLocation && <MapUpdater center={userLocation} />}
+      {!userLocation && <MapUpdater center={center} />}
+
+      {/* User Location Marker */}
+      {userLocation && (
+        <Marker position={userLocation} icon={createUserIcon()}>
+          <Popup>
+            <div className="text-center font-bold text-xs p-1">You are here</div>
+          </Popup>
+        </Marker>
+      )}
+
+      {/* Doctor Markers */}
       {practitioners.map((doc) => (
         <Marker 
           key={doc.id} 
@@ -67,13 +105,13 @@ export default function MapComponent({ practitioners }: MapProps) {
           icon={doc.verified ? createVerifiedIcon() : createUnverifiedIcon()}
         >
           <Popup className="rounded-xl overflow-hidden shadow-xl">
-            <div className="p-2">
+            <div className="p-2 min-w-[150px]">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-bold text-slate-900">{doc.name}</h3>
                 {doc.verified && <Shield className="w-3 h-3 text-primary" />}
               </div>
-              <p className="text-xs text-slate-500 mb-2">{doc.specialization}</p>
-              <button className="w-full py-1.5 px-3 bg-primary text-white text-[10px] font-bold rounded uppercase tracking-wider hover:bg-primary/90 transition-colors">
+              <p className="text-xs text-slate-500 mb-3">{doc.specialization}</p>
+              <button className="w-full py-2 px-3 bg-primary text-white text-[10px] font-bold rounded uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm">
                 Book Appointment
               </button>
             </div>
