@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, CheckCircle2, Upload, FileText, Activity, AlertCircle } from 'lucide-react';
+import { Shield, CheckCircle2, Upload, FileText, Activity, AlertCircle, UserPlus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const MOCK_OFFICIAL_LIST = [
@@ -247,9 +247,4 @@ export default function DoctorPortal() {
       </div>
     </div>
   );
-}
-
-// Hallucinated component placeholder for better experience
-function UserPlus(props: any) {
-    return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user-plus"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
 }
