@@ -253,7 +253,7 @@ export default function PatientPortal() {
 
       {/* Appointment Dialog */}
       <Dialog open={!!selectedDoctor} onOpenChange={(open) => !open && closeBooking()}>
-        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl max-h-[90vh] flex flex-col">
           {isBookingSuccess ? (
             <div className="py-16 px-8 text-center space-y-6 animate-in fade-in zoom-in duration-300">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
@@ -269,7 +269,7 @@ export default function PatientPortal() {
             </div>
           ) : (
             <>
-              <DialogHeader className="p-6 bg-slate-50 border-b">
+              <DialogHeader className="p-6 bg-slate-50 border-b shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <DialogTitle className="text-xl font-bold text-slate-900">Book Appointment</DialogTitle>
@@ -285,7 +285,7 @@ export default function PatientPortal() {
                 </div>
               </DialogHeader>
               
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">1</div>
@@ -326,7 +326,7 @@ export default function PatientPortal() {
                 </div>
               </div>
               
-              <DialogFooter className="p-6 bg-slate-50 border-t flex flex-row items-center justify-between gap-4">
+              <DialogFooter className="p-6 bg-slate-50 border-t flex flex-row items-center justify-between gap-4 shrink-0">
                 <Button variant="ghost" onClick={closeBooking} className="text-slate-500 hover:bg-slate-200 rounded-xl">
                   Discard
                 </Button>
