@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import emailjs from '@emailjs/browser';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, MapPin, Shield, Info, Navigation, Calendar as CalendarIcon, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
@@ -9,9 +10,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth, initiateAnonymousSignIn, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PractitionerMarker } from '@/components/map-component';
 
@@ -38,11 +38,15 @@ export default function PatientPortal() {
   const { toast } = useToast();
   const { user } = useUser();
   const auth = useAuth();
-  
+
   // Booking State
   const [selectedDoctor, setSelectedDoctor] = useState<PractitionerMarker | null>(null);
   const [bookingDate, setBookingDate] = useState<Date | undefined>(undefined);
   const [bookingTime, setBookingTime] = useState<string>('09:00');
+  const [patientName, setPatientName] = useState<string>('');
+  const [patientEmail, setPatientEmail] = useState<string>('');
+  const [patientPhone, setPatientPhone] = useState<string>('');
+  const [patientDescription, setPatientDescription] = useState<string>('');
   const [isBookingSuccess, setIsBookingSuccess] = useState(false);
 
   const db = useFirestore();
@@ -62,19 +66,21 @@ export default function PatientPortal() {
   }, [user, auth]);
 
   useEffect(() => {
-    const realDocs = dbPractitioners?.map(doc => ({
-      id: doc.id,
-      name: doc.name,
-      specialization: doc.specialization,
-      verified: doc.verifiedStatus === 'VERIFIED',
-      location: [doc.latitude, doc.longitude]
-    })) || [];
+    const realDocs = (dbPractitioners || [])
+      .filter(doc => doc.latitude !== undefined && doc.longitude !== undefined)
+      .map(doc => ({
+        id: doc.id,
+        name: doc.name || 'Unknown Doctor',
+        specialization: doc.specialization || 'General',
+        verified: doc.verifiedStatus === 'VERIFIED',
+        location: [doc.latitude, doc.longitude] as [number, number]
+      }));
 
     const allDocs = [...MOCK_PRACTITIONERS, ...realDocs];
 
-    const filtered = allDocs.filter(doc => 
-      doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const filtered = allDocs.filter(doc =>
+      (doc.specialization || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredDocs(filtered);
   }, [searchTerm, dbPractitioners]);
@@ -111,29 +117,115 @@ export default function PatientPortal() {
     );
   };
 
-  const handleConfirmBooking = () => {
-    if (!selectedDoctor || !user || !bookingDate) return;
+  const handleConfirmBooking = async () => {
+    if (!selectedDoctor || !user || !bookingDate || !patientName || !patientEmail || !patientPhone || !patientDescription) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please fill out your name, email, phone number, and a brief description of what you are facing to proceed.",
+      });
+      return;
+    }
 
     const appointmentDate = new Date(bookingDate);
     const [hours, minutes] = bookingTime.split(':');
     appointmentDate.setHours(parseInt(hours), parseInt(minutes));
 
-    const appointmentData = {
-      practitionerId: selectedDoctor.id,
-      patientId: user.uid,
-      date: appointmentDate.toISOString(),
-      status: 'PENDING',
-      createdAt: serverTimestamp(),
-    };
+    try {
+      const response = await fetch('/api/appointments/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          practitionerId: selectedDoctor.id,
+          patientId: user.uid,
+          patientName,
+          patientEmail,
+          patientPhone,
+          patientDescription,
+          date: appointmentDate.toISOString(),
+        }),
+      });
 
-    addDocumentNonBlocking(collection(db, 'appointments'), appointmentData);
-    setIsBookingSuccess(true);
+      const data = await response.json();
+
+      if (data.success) {
+        const appointmentData = {
+          practitionerId: selectedDoctor.id,
+          patientId: user.uid,
+          patientName,
+          patientEmail,
+          patientPhone,
+          patientDescription,
+          date: appointmentDate.toISOString(),
+          status: 'PENDING',
+          createdAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, 'appointments'), appointmentData);
+
+        try {
+          // Send EmailJS notification
+          const dateString = appointmentDate.toLocaleDateString();
+          const timeString = appointmentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          const emailRes = await emailjs.send(
+            'service_3d9j91e', // Replace with your Service ID
+            'template_wynw90f', // Replace with your Template ID
+            {
+              patient_name: patientName,
+              name: patientName, // In case {{name}} is used in the Auto-Reply or body
+              patient_phone: patientPhone,
+              patient_email: patientEmail,
+              doctor_name: selectedDoctor.name,
+              specialization: selectedDoctor.specialization,
+              appointment_date: dateString,
+              appointment_time: timeString,
+              patient_description: patientDescription,
+              'appointment time': timeString // The screenshot showed a space in the bottom variable!
+            },
+            'yOzNOX0evJOb2viDX'
+          );
+          console.log('EmailJS Success:', emailRes.status, emailRes.text);
+        } catch (emailError: any) {
+          console.error('Failed to send email notification:', emailError);
+          toast({
+            variant: "destructive",
+            title: "Email Delivery Failed",
+            description: emailError?.text || emailError?.message || "Check your browser console for exact EmailJS error.",
+          });
+        }
+
+        toast({
+          title: "Booking Confirmed!",
+          description: `Your appointment with ${selectedDoctor.name} has been successfully scheduled.`,
+        });
+        closeBooking();
+      } else {
+        console.error(data.error);
+        toast({
+          variant: "destructive",
+          title: "Booking Failed",
+          description: "There was an error booking your appointment.",
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to book appointment', error);
+      toast({
+        variant: "destructive",
+        title: "Booking Failed",
+        description: error.message || "Failed to write to database. Please check Firestore Rules.",
+      });
+    }
   };
 
   const closeBooking = () => {
     setSelectedDoctor(null);
     setIsBookingSuccess(false);
     setBookingDate(new Date());
+    setPatientName('');
+    setPatientEmail('');
+    setPatientPhone('');
+    setPatientDescription('');
   };
 
   return (
@@ -141,25 +233,25 @@ export default function PatientPortal() {
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-50 gap-4">
         <div className="flex items-center gap-4 flex-1 max-w-2xl">
           <div className="font-bold text-xl text-primary flex items-center gap-2 mr-6 shrink-0">
-             <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-                <div className="w-3 h-3 bg-white rounded-sm rotate-45" />
-             </div>
-             DocTrust
+            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
+              <div className="w-3 h-3 bg-white rounded-sm rotate-45" />
+            </div>
+            DocTrust
           </div>
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search specialization or name..." 
+            <Input
+              placeholder="Search specialization or name..."
               className="pl-10 h-11 bg-slate-50 border-slate-200 focus-visible:ring-primary rounded-full w-full"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
-          <Button 
-            variant={userLocation ? "secondary" : "outline"} 
+          <Button
+            variant={userLocation ? "secondary" : "outline"}
             className="rounded-full gap-2 hidden sm:flex"
             onClick={handleShareLocation}
             disabled={isLocating}
@@ -168,9 +260,9 @@ export default function PatientPortal() {
             {userLocation ? 'Live Location On' : 'Share Live Location'}
           </Button>
           <div className="hidden md:flex items-center gap-4">
-             <Badge variant="outline" className="text-muted-foreground border-slate-200 px-3 py-1">
-               <Shield className="w-3 h-3 mr-1 text-primary" /> Verified Only
-             </Badge>
+            <Badge variant="outline" className="text-muted-foreground border-slate-200 px-3 py-1">
+              <Shield className="w-3 h-3 mr-1 text-primary" /> Verified Only
+            </Badge>
           </div>
         </div>
       </header>
@@ -218,13 +310,13 @@ export default function PatientPortal() {
         </aside>
 
         <section className="flex-1 relative bg-slate-100">
-          <MapWithNoSSR 
-            practitioners={filteredDocs} 
-            userLocation={userLocation} 
-            center={DEFAULT_CENTER} 
+          <MapWithNoSSR
+            practitioners={filteredDocs}
+            userLocation={userLocation}
+            center={DEFAULT_CENTER}
             onBookAppointment={(doc) => setSelectedDoctor(doc)}
           />
-          
+
           <div className="absolute top-4 right-4 z-[1000] sm:hidden">
             <Button size="icon" variant="secondary" className="rounded-full shadow-lg" onClick={handleShareLocation} disabled={isLocating}>
               <Navigation className={`w-5 h-5 ${isLocating ? 'animate-spin' : ''}`} />
@@ -242,7 +334,7 @@ export default function PatientPortal() {
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                   <div className="w-2 h-2 rounded-full bg-slate-400" />
+                  <div className="w-2 h-2 rounded-full bg-slate-400" />
                 </div>
                 <span className="text-xs font-medium text-slate-600">Pending</span>
               </div>
@@ -284,27 +376,66 @@ export default function PatientPortal() {
                   )}
                 </div>
               </DialogHeader>
-              
-              <div className="p-6 space-y-6">
+
+              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">1</div>
-                    <span className="font-bold text-sm uppercase tracking-wider">Select Date</span>
+                    <span className="font-bold text-sm uppercase tracking-wider">Your Details</span>
                   </div>
-                  <div className="flex justify-center border rounded-2xl p-2 bg-white shadow-inner">
-                    <Calendar
-                      mode="single"
-                      selected={bookingDate}
-                      onSelect={setBookingDate}
-                      className="rounded-xl"
-                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Full Name"
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      className="h-12 border-slate-200"
+                    />
+                    <Input
+                      type="email"
+                      placeholder="Email Address"
+                      value={patientEmail}
+                      onChange={(e) => setPatientEmail(e.target.value)}
+                      className="h-12 border-slate-200"
+                    />
+                    <Input
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={patientPhone}
+                      onChange={(e) => setPatientPhone(e.target.value)}
+                      className="h-12 border-slate-200"
+                    />
+                    <textarea
+                      placeholder="Briefly describe what you are facing..."
+                      value={patientDescription}
+                      onChange={(e) => setPatientDescription(e.target.value)}
+                      className="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">2</div>
+                    <span className="font-bold text-sm uppercase tracking-wider">Select Date</span>
+                  </div>
+                  <div className="flex justify-center flex-col">
+                    <input
+                      type="date"
+                      className="flex h-12 w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      min={new Date().toISOString().split('T')[0]} // prevent past dates
+                      value={bookingDate ? new Date(bookingDate.getTime() - bookingDate.getTimezoneOffset() * 60000).toISOString().split('T')[0] : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setBookingDate(new Date(e.target.value));
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-primary">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">3</div>
                     <span className="font-bold text-sm uppercase tracking-wider">Select Time</span>
                   </div>
                   <Select value={bookingTime} onValueChange={setBookingTime}>
@@ -325,14 +456,14 @@ export default function PatientPortal() {
                   </Select>
                 </div>
               </div>
-              
+
               <DialogFooter className="p-6 bg-slate-50 border-t flex flex-row items-center justify-between gap-4">
                 <Button variant="ghost" onClick={closeBooking} className="text-slate-500 hover:bg-slate-200 rounded-xl">
                   Discard
                 </Button>
-                <Button 
-                  onClick={handleConfirmBooking} 
-                  disabled={!bookingDate} 
+                <Button
+                  onClick={handleConfirmBooking}
+                  disabled={!bookingDate}
                   className="px-8 h-12 rounded-xl shadow-lg bg-primary hover:bg-primary/90 gap-2"
                 >
                   Confirm Booking <ChevronRight className="w-4 h-4" />

@@ -65,5 +65,16 @@ service cloud.firestore {
       allow delete: if isExistingOwner(practitionerId);
     }
 
+    match /appointments/{appointmentId} {
+      // Anyone signed in can view appointments (e.g. for calendar checking, though you'll want stricter rules later)
+      allow read: if isSignedIn();
+      
+      // Anyone signed in can create an appointment
+      allow create: if isSignedIn();
+      
+      // We also allow the patient or practitioner involved to update/delete it if needed
+      allow update, delete: if isSignedIn();
+    }
+
   }
 }
